@@ -1,10 +1,8 @@
 import { randomBytes, randomUUID, pbkdf2Sync, timingSafeEqual } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 
-const defaultDatabasePath = resolve(process.cwd(), "runtime", "whiteblue-customers.sqlite");
-const defaultTenantKey = "whiteblue";
+const defaultFirebaseDatabaseUrl =
+  process.env.WHITEBLUE_FIREBASE_DATABASE_URL ?? "https://whiteblue-6edb5-default-rtdb.firebaseio.com";
+const firebaseAuthToken = process.env.WHITEBLUE_FIREBASE_AUTH_TOKEN;
 const passwordIterations = 120_000;
 const passwordKeyLength = 32;
 const passwordDigest = "sha256";
@@ -39,205 +37,159 @@ type CustomerCredentialRecord = AuthenticatedCustomer & {
   passwordSalt: string;
 };
 
-let sqlModulePromise: Promise<SqlJsStatic> | undefined;
+type TenantRecord = {
+  tenantId: string;
+  tenantKey: string;
+  tenantName: string;
+  createdAt: string;
+};
+
+type FirebaseHttpClient = typeof fetch;
 
 export class CustomerDatabase {
-  private dbPromise: Promise<Database> | undefined;
+  private readonly databaseUrl: string;
 
-  constructor(private readonly databasePath = process.env.WHITEBLUE_SQLITE_PATH ?? defaultDatabasePath) {}
+  constructor(
+    databaseUrl = defaultFirebaseDatabaseUrl,
+    private readonly httpClient: FirebaseHttpClient = fetch
+  ) {
+    this.databaseUrl = databaseUrl.replace(/\/+$/, "");
+  }
 
   async registerCustomer(input: RegisterCustomerInput): Promise<AuthenticatedCustomer> {
-    const db = await this.open();
     const normalized = normalizeRegistration(input);
-    const tenant = this.ensureTenant(db, normalized.tenantKey, normalized.tenantName);
-    const existing = this.findCustomerCredentials(db, tenant.tenantId, normalized.username);
+    const tenant = await this.ensureTenant(normalized.tenantKey, normalized.tenantName);
+    const existing = await this.findCustomerCredentials(tenant.tenantKey, normalized.username);
 
     if (existing) {
-      this.recordAuthEvent(db, tenant.tenantId, existing.customerId, "register", false, "Username already exists");
-      this.persist(db);
+      await this.recordAuthEvent(tenant.tenantKey, tenant.tenantId, existing.customerId, "register", false, "Username already exists");
       throw new CustomerAuthError("Username already exists for this tenant");
     }
 
     const customerId = randomUUID();
     const salt = randomBytes(16).toString("hex");
     const passwordHash = hashPassword(normalized.password, salt);
-    const createdAt = new Date().toISOString();
-
-    db.run(
-      `INSERT INTO customers (id, tenant_id, username, password_hash, password_salt, full_name, email, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [customerId, tenant.tenantId, normalized.username, passwordHash, salt, normalized.fullName, normalized.email ?? null, createdAt]
-    );
-
-    this.recordAuthEvent(db, tenant.tenantId, customerId, "register", true);
-    this.persist(db);
-
-    return {
+    const customer: CustomerCredentialRecord = {
       customerId,
       tenantId: tenant.tenantId,
       tenantKey: tenant.tenantKey,
       tenantName: tenant.tenantName,
       username: normalized.username,
       fullName: normalized.fullName,
-      email: normalized.email
+      email: normalized.email,
+      passwordHash,
+      passwordSalt: salt
     };
+
+    await this.put(`customers/${tenant.tenantKey}/${customerKey(normalized.username)}`, {
+      ...customer,
+      createdAt: new Date().toISOString()
+    });
+    await this.recordAuthEvent(tenant.tenantKey, tenant.tenantId, customerId, "register", true);
+
+    return stripCredentials(customer);
   }
 
   async validateLogin(input: LoginCustomerInput): Promise<AuthenticatedCustomer> {
-    const db = await this.open();
     const tenantKey = normalizeTenantKey(input.tenantKey);
     const username = normalizeUsername(input.username);
-    const tenant = this.findTenant(db, tenantKey);
+    const tenant = await this.findTenant(tenantKey);
 
     if (!tenant) {
-      this.persist(db);
       throw new CustomerAuthError("Invalid username or password");
     }
 
-    const customer = this.findCustomerCredentials(db, tenant.tenantId, username);
+    const customer = await this.findCustomerCredentials(tenant.tenantKey, username);
     if (!customer || !verifyPassword(input.password, customer.passwordSalt, customer.passwordHash)) {
-      this.recordAuthEvent(db, tenant.tenantId, customer?.customerId, "login", false, "Invalid credentials");
-      this.persist(db);
+      await this.recordAuthEvent(tenant.tenantKey, tenant.tenantId, customer?.customerId, "login", false, "Invalid credentials");
       throw new CustomerAuthError("Invalid username or password");
     }
 
-    this.recordAuthEvent(db, tenant.tenantId, customer.customerId, "login", true);
-    this.persist(db);
+    await this.recordAuthEvent(tenant.tenantKey, tenant.tenantId, customer.customerId, "login", true);
 
     return stripCredentials(customer);
   }
 
   async findCustomerByUsername(tenantKey: string, username: string): Promise<AuthenticatedCustomer | undefined> {
-    const db = await this.open();
-    const tenant = this.findTenant(db, normalizeTenantKey(tenantKey));
+    const normalizedTenantKey = normalizeTenantKey(tenantKey);
+    const tenant = await this.findTenant(normalizedTenantKey);
     if (!tenant) return undefined;
 
-    const customer = this.findCustomerCredentials(db, tenant.tenantId, normalizeUsername(username));
+    const customer = await this.findCustomerCredentials(tenant.tenantKey, normalizeUsername(username));
     return customer ? stripCredentials(customer) : undefined;
   }
 
-  private async open(): Promise<Database> {
-    this.dbPromise ??= this.createDatabase();
-    return this.dbPromise;
-  }
-
-  private async createDatabase(): Promise<Database> {
-    const SQL = await getSqlModule();
-    mkdirSync(dirname(this.databasePath), { recursive: true });
-    const db = existsSync(this.databasePath) ? new SQL.Database(readFileSync(this.databasePath)) : new SQL.Database();
-    this.ensureSchema(db);
-    this.persist(db);
-    return db;
-  }
-
-  private ensureSchema(db: Database): void {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS tenants (
-        id TEXT PRIMARY KEY,
-        tenant_key TEXT NOT NULL UNIQUE,
-        name TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS customers (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        username TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        password_salt TEXT NOT NULL,
-        full_name TEXT NOT NULL,
-        email TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-        UNIQUE (tenant_id, username)
-      );
-
-      CREATE TABLE IF NOT EXISTS auth_events (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        customer_id TEXT,
-        event_type TEXT NOT NULL,
-        success INTEGER NOT NULL,
-        reason TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-        FOREIGN KEY (customer_id) REFERENCES customers(id)
-      );
-    `);
-
-    this.ensureTenant(db, defaultTenantKey, "WhiteBlue");
-  }
-
-  private ensureTenant(db: Database, tenantKey: string, tenantName = tenantKey): { tenantId: string; tenantKey: string; tenantName: string } {
+  private async ensureTenant(tenantKey: string, tenantName = tenantKey): Promise<TenantRecord> {
     const normalizedKey = normalizeTenantKey(tenantKey);
-    const existing = this.findTenant(db, normalizedKey);
+    const existing = await this.findTenant(normalizedKey);
     if (existing) return existing;
 
-    const tenantId = randomUUID();
-    const createdAt = new Date().toISOString();
-    db.run("INSERT INTO tenants (id, tenant_key, name, created_at) VALUES (?, ?, ?, ?)", [
-      tenantId,
-      normalizedKey,
-      tenantName.trim() || normalizedKey,
-      createdAt
-    ]);
-
-    return { tenantId, tenantKey: normalizedKey, tenantName: tenantName.trim() || normalizedKey };
-  }
-
-  private findTenant(db: Database, tenantKey: string): { tenantId: string; tenantKey: string; tenantName: string } | undefined {
-    const rows = db.exec("SELECT id, tenant_key, name FROM tenants WHERE tenant_key = ?", [tenantKey]);
-    const values = rows[0]?.values[0];
-    if (!values) return undefined;
-
-    return {
-      tenantId: String(values[0]),
-      tenantKey: String(values[1]),
-      tenantName: String(values[2])
+    const tenant: TenantRecord = {
+      tenantId: randomUUID(),
+      tenantKey: normalizedKey,
+      tenantName: tenantName.trim() || normalizedKey,
+      createdAt: new Date().toISOString()
     };
+
+    await this.put(`tenants/${normalizedKey}`, tenant);
+    return tenant;
   }
 
-  private findCustomerCredentials(db: Database, tenantId: string, username: string): CustomerCredentialRecord | undefined {
-    const rows = db.exec(
-      `SELECT c.id, t.id, t.tenant_key, t.name, c.username, c.full_name, c.email, c.password_hash, c.password_salt
-       FROM customers c
-       JOIN tenants t ON t.id = c.tenant_id
-       WHERE c.tenant_id = ? AND c.username = ?`,
-      [tenantId, username]
-    );
-    const values = rows[0]?.values[0];
-    if (!values) return undefined;
-
-    return {
-      customerId: String(values[0]),
-      tenantId: String(values[1]),
-      tenantKey: String(values[2]),
-      tenantName: String(values[3]),
-      username: String(values[4]),
-      fullName: String(values[5]),
-      email: values[6] === null ? undefined : String(values[6]),
-      passwordHash: String(values[7]),
-      passwordSalt: String(values[8])
-    };
+  private async findTenant(tenantKey: string): Promise<TenantRecord | undefined> {
+    return this.get<TenantRecord>(`tenants/${tenantKey}`);
   }
 
-  private recordAuthEvent(
-    db: Database,
+  private async findCustomerCredentials(tenantKey: string, username: string): Promise<CustomerCredentialRecord | undefined> {
+    return this.get<CustomerCredentialRecord>(`customers/${tenantKey}/${customerKey(username)}`);
+  }
+
+  private async recordAuthEvent(
+    tenantKey: string,
     tenantId: string,
     customerId: string | undefined,
     eventType: "register" | "login",
     success: boolean,
     reason?: string
-  ): void {
-    db.run(
-      `INSERT INTO auth_events (id, tenant_id, customer_id, event_type, success, reason, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), tenantId, customerId ?? null, eventType, success ? 1 : 0, reason ?? null, new Date().toISOString()]
-    );
+  ): Promise<void> {
+    await this.post(`authEvents/${tenantKey}`, {
+      eventId: randomUUID(),
+      tenantId,
+      customerId: customerId ?? null,
+      eventType,
+      success,
+      reason: reason ?? null,
+      createdAt: new Date().toISOString()
+    });
   }
 
-  private persist(db: Database): void {
-    writeFileSync(this.databasePath, Buffer.from(db.export()));
+  private async get<T>(path: string): Promise<T | undefined> {
+    const response = await this.request(path, { method: "GET" });
+    const data = (await response.json()) as T | null;
+    return data ?? undefined;
+  }
+
+  private async put(path: string, body: unknown): Promise<void> {
+    await this.request(path, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  }
+
+  private async post(path: string, body: unknown): Promise<void> {
+    await this.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  }
+
+  private async request(path: string, init: RequestInit): Promise<Response> {
+    const response = await this.httpClient(firebaseUrl(this.databaseUrl, path), init);
+    if (!response.ok) {
+      throw new CustomerAuthError(`Firebase request failed with status ${response.status}`);
+    }
+    return response;
   }
 }
 
@@ -299,9 +251,12 @@ function stripCredentials(customer: CustomerCredentialRecord): AuthenticatedCust
   };
 }
 
-function getSqlModule(): Promise<SqlJsStatic> {
-  sqlModulePromise ??= initSqlJs({
-    locateFile: (file) => resolve(process.cwd(), "node_modules", "sql.js", "dist", file)
-  });
-  return sqlModulePromise;
+function customerKey(username: string): string {
+  return Buffer.from(username).toString("base64url");
+}
+
+function firebaseUrl(databaseUrl: string, path: string): string {
+  const url = new URL(`${databaseUrl}/${path}.json`);
+  if (firebaseAuthToken) url.searchParams.set("auth", firebaseAuthToken);
+  return url.toString();
 }

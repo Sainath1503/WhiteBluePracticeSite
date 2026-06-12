@@ -48,7 +48,6 @@ public class QaReportViewerApp extends Application {
   private static final String PAYMENT_SWAGGER_URL = PAYMENT_URL + "/api-docs";
   private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
   private static final String RESOURCE_ROOT = "/com/whiteblue/tools/qareportviewer/";
-  private static final String CUSTOMER_SQLITE_PATH = "runtime/whiteblue-customers.sqlite";
 
   private final TextArea reportingArea = new TextArea();
   private final TextArea servicesArea = new TextArea();
@@ -143,7 +142,7 @@ public class QaReportViewerApp extends Application {
         actionButton("Check / Install Prerequisites", () -> runUtilityCommand("Prerequisite check", npm("run", "prerequisites:check"), servicesArea)),
         actionButton("Start Service", this::startWhiteBlueService),
         actionButton("Stop Service", () -> stopManagedProcess("WhiteBlue service", true)),
-        actionButton("Truncate Login/Register SQLite", this::resetCustomerSqlite),
+        actionButton("Show Auth Database", this::showAuthDatabase),
         actionButton("Start Swagger Service", this::startSwaggerService),
         actionButton("Stop Swagger Service", () -> stopManagedProcess("Swagger service", false)),
         actionButton("Show Launch URLs", this::showLaunchUrls),
@@ -385,25 +384,14 @@ public class QaReportViewerApp extends Application {
     statusLabel.setText(label + " stopped.");
   }
 
-  private void resetCustomerSqlite() {
-    Path databasePath = repositoryRoot.resolve(CUSTOMER_SQLITE_PATH).normalize();
-
-    if (isAlive(foodHubServiceProcess)) {
-      stopManagedProcess("WhiteBlue service", true);
-    }
-    if (isAlive(swaggerServiceProcess)) {
-      stopManagedProcess("Swagger service", false);
-    }
-
+  private void showAuthDatabase() {
+    String databaseUrl = "https://whiteblue-6edb5-default-rtdb.firebaseio.com/";
+    appendLine(servicesArea, "Login/register data is stored in Firebase Realtime Database: " + databaseUrl);
     try {
-      Files.deleteIfExists(databasePath);
-      Files.deleteIfExists(Path.of(databasePath + "-shm"));
-      Files.deleteIfExists(Path.of(databasePath + "-wal"));
-      appendLine(servicesArea, "Reset login/register SQLite data: " + databasePath);
-      appendLine(servicesArea, "The next service start will recreate an empty customer database.");
-      statusLabel.setText("Login/register SQLite data reset.");
-    } catch (IOException error) {
-      showError("Unable to reset login/register SQLite data", error.getMessage());
+      Desktop.getDesktop().browse(URI.create(databaseUrl));
+      statusLabel.setText("Opened Firebase Realtime Database.");
+    } catch (IOException | UnsupportedOperationException error) {
+      showError("Unable to open Firebase Realtime Database", error.getMessage());
     }
   }
 

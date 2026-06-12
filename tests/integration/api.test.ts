@@ -1,6 +1,5 @@
 import request from "supertest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
@@ -65,66 +64,61 @@ describe("WhiteBlue API", () => {
     expect(response.text).toContain('url: "/openapi.json"');
   });
 
-  it("creates customer tables at runtime and supports register/login/session lookup", async () => {
-    const tempDir = mkdtempSync(resolve(tmpdir(), "whiteblue-customers-"));
-    const appWithCustomerDb = createApp(undefined, new CustomerDatabase(resolve(tempDir, "customers.sqlite")));
+  it("stores customers in Firebase Realtime Database and supports register/login/session lookup", async () => {
+    const appWithCustomerDb = createApp(undefined, new CustomerDatabase("https://whiteblue.test", createFirebaseFetch()));
 
-    try {
-      const registration = await request(appWithCustomerDb)
-        .post("/api/register")
-        .send({
+    const registration = await request(appWithCustomerDb)
+      .post("/api/register")
+      .send({
+        tenantKey: "acme-labs",
+        tenantName: "Acme Labs",
+        fullName: "Taylor Jordan",
+        email: "taylor@example.com",
+        username: "tjordan",
+        password: "correct-horse-42"
+      })
+      .expect(201);
+
+    expect(registration.body).toEqual(
+      expect.objectContaining({
+        sessionToken: expect.any(String),
+        customer: expect.objectContaining({
           tenantKey: "acme-labs",
-          tenantName: "Acme Labs",
-          fullName: "Taylor Jordan",
-          email: "taylor@example.com",
           username: "tjordan",
-          password: "correct-horse-42"
+          fullName: "Taylor Jordan"
         })
-        .expect(201);
+      })
+    );
 
-      expect(registration.body).toEqual(
-        expect.objectContaining({
-          sessionToken: expect.any(String),
-          customer: expect.objectContaining({
-            tenantKey: "acme-labs",
+    const login = await request(appWithCustomerDb)
+      .post("/api/login")
+      .send({
+        tenantKey: "acme-labs",
+        username: "tjordan",
+        password: "correct-horse-42"
+      })
+      .expect(200);
+
+    await request(appWithCustomerDb)
+      .get("/api/me")
+      .set("x-whiteblue-session", login.body.sessionToken)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.customer.fullName).toBe("Taylor Jordan");
+      });
+
+    await request(appWithCustomerDb)
+      .get("/api/customers/acme-labs/tjordan")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.customer).toEqual(
+          expect.objectContaining({
             username: "tjordan",
-            fullName: "Taylor Jordan"
+            email: "taylor@example.com"
           })
-        })
-      );
-
-      const login = await request(appWithCustomerDb)
-        .post("/api/login")
-        .send({
-          tenantKey: "acme-labs",
-          username: "tjordan",
-          password: "correct-horse-42"
-        })
-        .expect(200);
-
-      await request(appWithCustomerDb)
-        .get("/api/me")
-        .set("x-whiteblue-session", login.body.sessionToken)
-        .expect(200)
-        .expect((response) => {
-          expect(response.body.customer.fullName).toBe("Taylor Jordan");
-        });
-
-      await request(appWithCustomerDb)
-        .get("/api/customers/acme-labs/tjordan")
-        .expect(200)
-        .expect((response) => {
-          expect(response.body.customer).toEqual(
-            expect.objectContaining({
-              username: "tjordan",
-              email: "taylor@example.com"
-            })
-          );
-          expect(response.body.customer.passwordHash).toBeUndefined();
-        });
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+        );
+        expect(response.body.customer.passwordHash).toBeUndefined();
+      });
   });
 
   it("static Swagger page loads the OpenAPI spec from /openapi.json", () => {
@@ -326,3 +320,56 @@ describe("WhiteBlue API", () => {
     });
   });
 });
+
+function createFirebaseFetch(): typeof fetch {
+  const store: Record<string, unknown> = {};
+
+  return async (input, init) => {
+    const url = new URL(typeof input === "string" || input instanceof URL ? input.toString() : input.url);
+    const path = url.pathname.replace(/^\/|\.json$/g, "").split("/").filter(Boolean);
+    const method = init?.method ?? "GET";
+
+    if (method === "GET") {
+      return jsonResponse(readPath(store, path) ?? null);
+    }
+
+    if (method === "PUT") {
+      writePath(store, path, JSON.parse(String(init?.body)));
+      return jsonResponse(readPath(store, path));
+    }
+
+    if (method === "POST") {
+      const key = `event-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      writePath(store, [...path, key], JSON.parse(String(init?.body)));
+      return jsonResponse({ name: key });
+    }
+
+    return new Response(null, { status: 405 });
+  };
+}
+
+function readPath(store: Record<string, unknown>, path: string[]): unknown {
+  return path.reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, store);
+}
+
+function writePath(store: Record<string, unknown>, path: string[], value: unknown): void {
+  let current = store;
+  for (const segment of path.slice(0, -1)) {
+    const next = current[segment];
+    if (!next || typeof next !== "object") {
+      current[segment] = {};
+    }
+    current = current[segment] as Record<string, unknown>;
+  }
+  current[path[path.length - 1]] = value;
+}
+
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "content-type": "application/json" }
+  });
+}
