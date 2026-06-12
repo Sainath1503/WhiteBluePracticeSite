@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhiteBlue QA Automation Report</title>
+    <style>
+      :root {
+        color: #202824;
+        background: #f4f6f8;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      [hidden] { display: none !important; }
+      .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+      aside { background: #17211d; color: #fff; padding: 22px; }
+      .brand { border-bottom: 1px solid rgba(255,255,255,.16); margin-bottom: 16px; padding-bottom: 18px; }
+      .brand p { color: #b7c7c0; font-size: .78rem; font-weight: 800; margin: 0 0 6px; text-transform: uppercase; }
+      .brand h1 { font-size: 1.35rem; margin: 0; }
+      .nav-button { background: transparent; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; color: #fff; cursor: pointer; display: grid; gap: 4px; margin-bottom: 10px; padding: 12px; text-align: left; width: 100%; }
+      .nav-button.active { background: #1f6f50; border-color: #1f6f50; }
+      .nav-button strong { font-size: .98rem; }
+      .nav-button span { color: #d8e3de; font-size: .82rem; }
+      main { padding: 26px clamp(18px, 4vw, 42px); }
+      .top { align-items: end; display: flex; gap: 18px; justify-content: space-between; margin-bottom: 20px; }
+      h2, h3, p { margin-top: 0; }
+      h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); margin-bottom: 6px; }
+      .muted { color: #607068; }
+      .summary { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px; }
+      .metric, .panel, details { background: #fff; border: 1px solid #dce3df; border-radius: 8px; box-shadow: 0 8px 22px rgba(28,39,34,.05); }
+      .metric { padding: 16px; }
+      .metric span, .field span { color: #607068; display: block; font-size: .75rem; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
+      .metric strong { font-size: 1.65rem; }
+      .charts { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-bottom: 18px; }
+      .panel { padding: 18px; }
+      canvas { display: block; height: 270px; width: 100%; }
+      .load-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 18px; }
+      .load-card { border-left: 4px solid #1f6f50; padding: 14px; }
+      .load-card.failed { border-left-color: #b8322a; }
+      .visual-panel { margin-bottom: 18px; }
+      details { margin-bottom: 12px; overflow: hidden; }
+      summary { align-items: center; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 15px 16px; }
+      summary strong { font-size: 1rem; }
+      .badge { border-radius: 999px; display: inline-flex; font-size: .78rem; font-weight: 800; padding: 5px 9px; }
+      .badge.passed { background: #e5f5eb; color: #1d5b30; }
+      .badge.failed { background: #ffe8e3; color: #9b241e; }
+      .badge.skipped { background: #edf0f2; color: #55616a; }
+      .test-body { border-top: 1px solid #e6ebe8; display: grid; gap: 10px; padding: 14px 16px 16px; }
+      .test-grid { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .field { background: #f6f8f7; border-radius: 6px; padding: 10px; }
+      .field p { margin-bottom: 0; }
+      @media (max-width: 980px) {
+        .shell, .summary, .charts, .load-grid, .test-grid { grid-template-columns: 1fr; }
+        .top { align-items: start; flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <div class="brand">
+          <p>QA Report</p>
+          <h1>WhiteBlue Automation</h1>
+        </div>
+        <button class="nav-button active" data-filter="Dashboard"><strong>Dashboard</strong><span>Overall execution</span></button>
+        <button class="nav-button" data-filter="Contract"><strong>Contract Tests</strong><span>2 passed / 0 failed</span></button>
+      </aside>
+      <main>
+        <section class="top">
+          <div>
+            <h2 id="section-title">Dashboard</h2>
+          <p class="muted">Generated at 2026-06-09T10:13:06.240Z. Scope: Contract Tests.</p>
+          </div>
+          <span class="badge passed">0 failures</span>
+        </section>
+
+        <section class="summary" id="summary-cards"></section>
+
+        <section class="charts" id="dashboard-charts">
+          <div class="panel">
+            <h3>Execution Coverage By Test Type</h3>
+            <canvas id="type-chart" width="640" height="320"></canvas>
+          </div>
+          <div class="panel">
+            <h3>Overall Status Mix</h3>
+            <canvas id="status-chart" width="420" height="320"></canvas>
+          </div>
+        </section>
+
+        <section class="charts" id="addon-panel">
+          <div class="panel">
+            <h3>Quality Gates And Add-ons</h3>
+            <div class="load-grid" id="coverage-cards"></div>
+            <div class="load-grid" id="addon-cards"></div>
+          </div>
+        </section>
+
+        <section class="charts" id="load-charts" hidden>
+          <div class="panel">
+            <h3>k6 Load Thresholds</h3>
+            <canvas id="load-chart" width="640" height="320"></canvas>
+          </div>
+          <div class="panel">
+            <h3>Load Test Result Cards</h3>
+            <div class="load-grid" id="load-cards"></div>
+          </div>
+        </section>
+
+        <section id="test-list"></section>
+      </main>
+    </div>
+    <script>
+      const report = {"generatedAt":"2026-06-09T10:13:06.240Z","tests":[{"id":"CON-001","type":"Contract","file":"tests/contract/foodHubApi.pact.test.ts","name":"WhiteBlue Web can consume the WhiteBlue API menu contract","status":"Passed","durationMs":140,"details":"Pact verifies that GET /menu returns the status, JSON header, and menu item shape the consumer depends on."},{"id":"CON-002","type":"Contract","file":"tests/contract/foodHubApi.pact.test.ts","name":"WhiteBlue Web can consume the paid order contract","status":"Passed","durationMs":120,"details":"Pact verifies that POST /order accepts the consumer payload and returns the expected receipt contract."}],"byType":[{"type":"Contract","total":2,"passed":2,"failed":0,"skipped":0}],"statusCounts":{"passed":2,"failed":0,"skipped":0},"loadMetrics":[{"label":"HTTP p95 response time","value":6.65,"threshold":500,"unit":" ms","status":"Passed","chart":true},{"label":"HTTP request failure rate","value":0,"threshold":0.05,"unit":"","status":"Passed","chart":true},{"label":"Paid order failure rate","value":0,"threshold":0.02,"unit":"","status":"Passed","chart":true},{"label":"Configured max virtual users","value":5,"threshold":5,"unit":" VUs","status":"Passed","chart":false},{"label":"Completed load iterations","value":217,"threshold":217,"unit":"","status":"Passed","chart":false},{"label":"Total API requests","value":651,"threshold":651,"unit":"","status":"Passed","chart":false},{"label":"GET /health hits","value":217,"threshold":217,"unit":"","status":"Passed","chart":false},{"label":"GET /menu hits","value":217,"threshold":217,"unit":"","status":"Passed","chart":false},{"label":"POST /order hits","value":217,"threshold":217,"unit":"","status":"Passed","chart":false},{"label":"HTTP requests per second","value":11.8036,"threshold":11.80361499565707,"unit":"/s","status":"Passed","chart":false}],"coverageMetrics":[{"label":"Lines","value":96,"threshold":90,"status":"Passed"},{"label":"Statements","value":96,"threshold":90,"status":"Passed"},{"label":"Functions","value":100,"threshold":90,"status":"Passed"},{"label":"Branches","value":94.33,"threshold":90,"status":"Passed"}],"addOns":[{"name":"Critical Logic Coverage","status":"Passed","details":"Lines: 96%, Statements: 96%, Functions: 100%, Branches: 94.33%"},{"name":"Visual Regression","status":"Implemented","details":"Playwright compares baseline snapshots for menu-visible, cart-ready, and gateway-ready UI states during E2E execution."}]};
+      const buttons = document.querySelectorAll(".nav-button");
+      const list = document.querySelector("#test-list");
+      const title = document.querySelector("#section-title");
+      const summaryCards = document.querySelector("#summary-cards");
+      const dashboardCharts = document.querySelector("#dashboard-charts");
+      const addonPanel = document.querySelector("#addon-panel");
+      const loadCharts = document.querySelector("#load-charts");
+      const colors = { Passed: "#1f8a52", Failed: "#c0392b", Skipped: "#8b98a5" };
+
+      function renderDashboard() {
+        title.textContent = "Dashboard";
+        list.innerHTML = "";
+        dashboardCharts.hidden = false;
+        addonPanel.hidden = false;
+        loadCharts.hidden = true;
+        summaryCards.innerHTML = `
+          <div class="metric"><span>Total Checks</span><strong>2</strong></div>
+          <div class="metric"><span>Passed</span><strong>2</strong></div>
+          <div class="metric"><span>Failed</span><strong>0</strong></div>
+          <div class="metric"><span>Total Duration</span><strong>0s</strong></div>
+        `;
+        drawTypeChart();
+        drawStatusChart();
+        renderAddOns();
+        renderCoverageGate();
+      }
+
+      function renderTests(type) {
+        title.textContent = type + " Tests";
+        list.innerHTML = "";
+        dashboardCharts.hidden = true;
+        addonPanel.hidden = true;
+        loadCharts.hidden = type !== "Load";
+        const sectionTests = report.tests.filter((item) => item.type === type);
+        const passed = sectionTests.filter((item) => item.status === "Passed").length;
+        const failed = sectionTests.filter((item) => item.status === "Failed").length;
+        const skipped = sectionTests.filter((item) => item.status === "Skipped").length;
+        const duration = sectionTests.reduce((sum, item) => sum + item.durationMs, 0);
+        summaryCards.innerHTML = `
+          <div class="metric"><span>${type} Checks</span><strong>${sectionTests.length}</strong></div>
+          <div class="metric"><span>${type} Passed</span><strong>${passed}</strong></div>
+          <div class="metric"><span>${type} Failed</span><strong>${failed}</strong></div>
+          <div class="metric"><span>${type} Duration</span><strong>${Math.round(duration / 1000)}s</strong></div>
+        `;
+        if (type === "Load") {
+          renderLoadCards();
+          drawLoadChart();
+        }
+        if (type === "E2E") {
+          renderVisualChecks(sectionTests);
+        }
+        sectionTests.forEach((test, index) => {
+          const item = document.createElement("details");
+          item.open = index === 0;
+          item.innerHTML = `
+            <summary><strong>${test.id}: ${test.name}</strong><span class="badge ${test.status.toLowerCase()}">${test.status}</span></summary>
+            <div class="test-body">
+              <div class="test-grid">
+                <div class="field"><span>Type</span><strong>${test.type}</strong></div>
+                <div class="field"><span>Duration</span><strong>${test.durationMs} ms</strong></div>
+                <div class="field"><span>Status</span><strong>${test.status}</strong></div>
+              </div>
+              <div class="field"><span>File</span><strong>${test.file}</strong></div>
+              <div class="field"><span>Details</span><p>${test.details}</p></div>
+            </div>`;
+          list.appendChild(item);
+        });
+      }
+
+      buttons.forEach((button) => button.addEventListener("click", () => {
+        buttons.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        if (button.dataset.filter === "Dashboard") {
+          renderDashboard();
+        } else {
+          renderTests(button.dataset.filter);
+        }
+      }));
+
+      function drawTypeChart() {
+        const canvas = document.querySelector("#type-chart");
+        const ctx = canvas.getContext("2d");
+        const max = Math.max(...report.byType.map((item) => item.total), 1);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        report.byType.forEach((item, index) => {
+          const x = 42 + index * 118;
+          const passedHeight = (item.passed / max) * 210;
+          const failedHeight = (item.failed / max) * 210;
+          const y = 258 - passedHeight - failedHeight;
+          ctx.fillStyle = colors.Passed;
+          ctx.fillRect(x, 258 - passedHeight, 70, passedHeight || 3);
+          if (item.failed) {
+            ctx.fillStyle = colors.Failed;
+            ctx.fillRect(x, y, 70, failedHeight);
+          }
+          ctx.fillStyle = "#202824";
+          ctx.font = "13px Segoe UI";
+          ctx.fillText(item.type, x - 4, 292);
+          ctx.fillText(String(item.total), x + 28, Math.max(20, y - 8));
+        });
+      }
+
+      function drawStatusChart() {
+        const canvas = document.querySelector("#status-chart");
+        const ctx = canvas.getContext("2d");
+        const rows = [
+          ["Passed", report.statusCounts.passed],
+          ["Failed", report.statusCounts.failed],
+          ["Skipped", report.statusCounts.skipped]
+        ];
+        const total = rows.reduce((sum, [, count]) => sum + count, 0) || 1;
+        let start = -Math.PI / 2;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        rows.forEach(([label, count]) => {
+          const slice = (count / total) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(145, 150);
+          ctx.arc(145, 150, 96, start, start + slice);
+          ctx.closePath();
+          ctx.fillStyle = colors[label];
+          ctx.fill();
+          start += slice;
+        });
+        ctx.beginPath();
+        ctx.arc(145, 150, 54, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.fillStyle = "#202824";
+        ctx.font = "700 18px Segoe UI";
+        ctx.fillText(total + " checks", 105, 156);
+        rows.forEach(([label, count], index) => {
+          ctx.fillStyle = colors[label];
+          ctx.fillRect(285, 100 + index * 34, 12, 12);
+          ctx.fillStyle = "#202824";
+          ctx.font = "13px Segoe UI";
+          ctx.fillText(label + ": " + count, 305, 111 + index * 34);
+        });
+      }
+
+      function drawLoadChart() {
+        const canvas = document.querySelector("#load-chart");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        report.loadMetrics.filter((item) => item.chart).forEach((item, index) => {
+          const max = Math.max(item.threshold, item.value, 1);
+          const valueWidth = (item.value / max) * 340;
+          const thresholdX = 210 + (item.threshold / max) * 340;
+          const y = 58 + index * 82;
+          ctx.fillStyle = "#eef2f0";
+          ctx.fillRect(210, y, 340, 24);
+          ctx.fillStyle = item.status === "Passed" ? colors.Passed : colors.Failed;
+          ctx.fillRect(210, y, valueWidth, 24);
+          ctx.fillStyle = "#202824";
+          ctx.font = "13px Segoe UI";
+          ctx.fillText(item.label, 28, y + 17);
+          ctx.fillText(item.value + item.unit, 210, y + 48);
+          ctx.strokeStyle = "#202824";
+          ctx.beginPath();
+          ctx.moveTo(thresholdX, y - 6);
+          ctx.lineTo(thresholdX, y + 32);
+          ctx.stroke();
+          ctx.fillText("limit " + item.threshold + item.unit, thresholdX - 26, y - 12);
+        });
+      }
+
+      function renderLoadCards() {
+        const target = document.querySelector("#load-cards");
+        target.innerHTML = report.loadMetrics.map((item) => `
+          <div class="metric load-card ${item.status.toLowerCase()}">
+            <span>${item.label}</span>
+            <strong>${item.value}${item.unit}</strong>
+            <p class="muted">${item.chart ? "Threshold: " + item.threshold + item.unit : "Measured during latest k6 run"}</p>
+          </div>`).join("");
+      }
+
+      function renderVisualChecks(sectionTests) {
+        const visualTests = sectionTests.filter((item) => item.id.startsWith("VIS-"));
+        if (!visualTests.length) {
+          return;
+        }
+        const passed = visualTests.filter((item) => item.status === "Passed").length;
+        const panel = document.createElement("div");
+        panel.className = "panel visual-panel";
+        panel.innerHTML = `
+          <h3>Visual Regression Checks</h3>
+          <div class="load-grid">
+            ${visualTests.map((item) => `
+              <div class="metric load-card ${item.status.toLowerCase()}">
+                <span>${item.id}</span>
+                <strong>${item.status}</strong>
+                <p class="muted">${item.name}</p>
+              </div>`).join("")}
+          </div>
+          <p class="muted">${passed} of ${visualTests.length} Playwright screenshot baseline checks passed in the latest E2E execution.</p>
+        `;
+        list.appendChild(panel);
+      }
+
+      function renderAddOns() {
+        const target = document.querySelector("#addon-cards");
+        target.innerHTML = report.addOns.map((item) => `
+          <div class="metric load-card skipped">
+            <span>${item.name}</span>
+            <strong>${item.status}</strong>
+            <p class="muted">${item.details}</p>
+          </div>`).join("");
+      }
+
+      function renderCoverageGate() {
+        const target = document.querySelector("#coverage-cards");
+        if (!report.coverageMetrics.length) {
+          target.innerHTML = `
+            <div class="metric load-card skipped">
+              <span>Critical Logic Coverage</span>
+              <strong>Not Run</strong>
+              <p class="muted">Run npm run test:coverage to populate the 90% gate.</p>
+            </div>`;
+          return;
+        }
+        target.innerHTML = report.coverageMetrics.map((item) => `
+          <div class="metric load-card ${item.status.toLowerCase()}">
+            <span>${item.label} Coverage</span>
+            <strong>${item.value}%</strong>
+            <p class="muted">Threshold: ${item.threshold}%</p>
+          </div>`).join("");
+      }
+
+      renderDashboard();
+      renderLoadCards();
+      renderAddOns();
+      renderCoverageGate();
+      drawTypeChart();
+      drawStatusChart();
+      drawLoadChart();
+    </script>
+  </body>
+</html>

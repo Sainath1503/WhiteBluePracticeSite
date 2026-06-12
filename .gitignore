@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+qa-artifacts/load-test-summary.json
+.env
+.setup-tools
+qa-report-viewer/target
+/app
+/runtime

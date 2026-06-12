@@ -1,0 +1,101 @@
+.app-shell {
+  -fx-background-color: #f4f9ff;
+  -fx-font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.brand-header {
+  -fx-background-color: #0787f7;
+  -fx-border-color: #0569c6;
+  -fx-border-width: 0 0 1 0;
+}
+
+.brand-logo {
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.22), 10, 0.2, 0, 2);
+}
+
+.header-title {
+  -fx-text-fill: white;
+  -fx-font-size: 28px;
+  -fx-font-weight: 800;
+}
+
+.header-subtitle {
+  -fx-text-fill: #e7f4ff;
+  -fx-font-size: 12px;
+}
+
+.tab-pane {
+  -fx-background-color: #f4f9ff;
+}
+
+.tab-pane .tab-header-area .tab-header-background {
+  -fx-background-color: #ffffff;
+  -fx-border-color: #d7e8f7;
+  -fx-border-width: 0 0 1 0;
+}
+
+.tab-pane .tab {
+  -fx-background-color: #ffffff;
+  -fx-background-radius: 0;
+  -fx-padding: 8 18 8 18;
+}
+
+.tab-pane .tab:selected {
+  -fx-background-color: #0787f7;
+}
+
+.tab-pane .tab .tab-label {
+  -fx-text-fill: #17324a;
+  -fx-font-weight: 700;
+}
+
+.tab-pane .tab:selected .tab-label {
+  -fx-text-fill: white;
+}
+
+.button {
+  -fx-background-color: #0787f7;
+  -fx-background-radius: 5;
+  -fx-border-radius: 5;
+  -fx-text-fill: white;
+  -fx-font-weight: 700;
+  -fx-padding: 8 12 8 12;
+}
+
+.button:hover {
+  -fx-background-color: #0576dc;
+}
+
+.button:pressed {
+  -fx-background-color: #045fad;
+}
+
+.combo-box {
+  -fx-background-color: white;
+  -fx-border-color: #bdd9ef;
+  -fx-border-radius: 5;
+  -fx-background-radius: 5;
+}
+
+.text-area {
+  -fx-background-color: white;
+  -fx-border-color: #bdd9ef;
+  -fx-border-radius: 6;
+  -fx-background-radius: 6;
+  -fx-text-fill: #10283d;
+}
+
+.text-area .content {
+  -fx-background-color: white;
+}
+
+.section-label {
+  -fx-text-fill: #045fad;
+  -fx-font-size: 13px;
+  -fx-font-weight: 800;
+  -fx-padding: 10 0 0 0;
+}
+
+.label {
+  -fx-text-fill: #10283d;
+}

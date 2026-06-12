@@ -1,0 +1,6 @@
+{
+  "check": "E2E",
+  "label": "E2E tests",
+  "status": "skipped",
+  "reason": "Skipped because of Pact contract tests failure. Pact contract tests failed. Other running or pending local checks were skipped by fail-fast."
+}

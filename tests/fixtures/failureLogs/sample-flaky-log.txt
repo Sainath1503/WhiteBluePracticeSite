@@ -1,0 +1,17 @@
+Running 3 tests using 1 worker
+
+  x [chromium] tests/e2e/order-flow.spec.ts > customer can view menu, pay through the gateway, and receive an AI suggestion
+
+Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4173/
+Call log:
+  - navigating to "http://127.0.0.1:4173/", waiting until "load"
+
+Retry #1
+  ok [chromium] tests/e2e/order-flow.spec.ts > customer can view menu, pay through the gateway, and receive an AI suggestion
+
+  x [chromium] tests/e2e/order-flow.spec.ts > customer sees a declined gateway payment failure
+
+Error: expect(locator).toHaveText: Timeout 5000ms exceeded.
+Locator: locator("#gateway-message")
+Expected string: "Payment declined for xxxx-xxxx-xxxx-8911."
+Received string: "Processing through WhiteBlue Payment Gateway..."

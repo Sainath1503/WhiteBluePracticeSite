@@ -1,0 +1,6 @@
+{
+  "check": "Contract",
+  "label": "Pact contract tests",
+  "status": "failed",
+  "reason": "Pact contract tests failed. Other running or pending local checks were skipped by fail-fast."
+}

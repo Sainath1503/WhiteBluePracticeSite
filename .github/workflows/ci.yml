@@ -1,0 +1,261 @@
+name: PR Test Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-test-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test-gate:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - check: Unit
+            label: Unit tests
+          - check: Integration
+            label: Integration tests
+          - check: Contract
+            label: Pact contract tests
+          - check: Coverage
+            label: Critical logic coverage gate
+          - check: E2E
+            label: E2E tests
+          - check: Load
+            label: Load tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Run ${{ matrix.label }}
+        id: run-check
+        continue-on-error: true
+        shell: bash
+        env:
+          CHECK_NAME: ${{ matrix.check }}
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            local exit_code=$?
+            jobs -pr | xargs -r kill >/dev/null 2>&1 || true
+            if [[ -f .foodhub-api.pid ]]; then
+              local api_pid
+              api_pid="$(cat .foodhub-api.pid)"
+              if [[ -n "$api_pid" ]] && kill -0 "$api_pid" 2>/dev/null; then
+                kill "$api_pid" 2>/dev/null || true
+                wait "$api_pid" 2>/dev/null || true
+              fi
+              rm -f .foodhub-api.pid
+            fi
+            docker ps -aq --filter "ancestor=grafana/k6:2.0.0" | xargs -r docker rm -f >/dev/null 2>&1 || true
+            exit "$exit_code"
+          }
+          trap cleanup EXIT INT TERM
+
+          npm ci
+          npm run build:ci
+
+          case "$CHECK_NAME" in
+            Unit)
+              npm run test:unit
+              ;;
+            Integration)
+              npm run test:integration
+              ;;
+            Contract)
+              npm run test:contract
+              ;;
+            Coverage)
+              npm run test:coverage
+              ;;
+            E2E)
+              npx playwright install --with-deps chromium
+              npm run test:e2e
+              ;;
+            Load)
+              mkdir -p qa-artifacts
+              node dist/src/server.js &
+              echo "$!" > .foodhub-api.pid
+
+              for attempt in {1..30}; do
+                if curl --fail --silent http://127.0.0.1:4173/health > /dev/null; then
+                  break
+                fi
+                sleep 1
+              done
+              if ! curl --fail --silent http://127.0.0.1:4173/health > /dev/null; then
+                echo "FoodHub API did not become healthy in time"
+                exit 1
+              fi
+
+              rm -f qa-artifacts/load-test-summary.json
+
+              docker run --rm --network host \
+                --user "$(id -u):$(id -g)" \
+                -e BASE_URL=http://127.0.0.1:4173 \
+                -e VUS=1 \
+                -e RAMP_UP=5s \
+                -e STEADY_STATE=10s \
+                -e RAMP_DOWN=5s \
+                -e THINK_TIME_SECONDS=0.2 \
+                -v "${{ github.workspace }}:/work" \
+                -w /work \
+                grafana/k6:2.0.0 run \
+                  --summary-export qa-artifacts/load-test-summary.json \
+                  tests/load/foodhub-api.k6.js
+
+              ls -la qa-artifacts
+              test -s qa-artifacts/load-test-summary.json || {
+                echo "Missing qa-artifacts/load-test-summary.json after k6 run"
+                exit 1
+              }
+              ;;
+            *)
+              echo "Unknown check: $CHECK_NAME"
+              exit 1
+              ;;
+          esac
+
+      - name: Write check status
+        if: always()
+        shell: bash
+        env:
+          CHECK_NAME: ${{ matrix.check }}
+          CHECK_LABEL: ${{ matrix.label }}
+          CHECK_OUTCOME: ${{ steps.run-check.outcome }}
+        run: |
+          mkdir -p qa-artifacts/ci-status
+          status="passed"
+          reason=""
+          if [[ "$CHECK_OUTCOME" != "success" ]]; then
+            status="failed"
+            reason="$CHECK_LABEL failed. Other queued or in-progress matrix checks are skipped by fail-fast."
+          fi
+          cat > "qa-artifacts/ci-status/${CHECK_NAME}.json" <<EOF
+          {
+            "check": "$CHECK_NAME",
+            "label": "$CHECK_LABEL",
+            "status": "$status",
+            "reason": "$reason"
+          }
+          EOF
+
+      - name: Upload check status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-status-${{ matrix.check }}
+          path: qa-artifacts/ci-status/${{ matrix.check }}.json
+          if-no-files-found: ignore
+
+      - name: Upload coverage report
+        if: always() && matrix.check == 'Coverage'
+        uses: actions/upload-artifact@v4
+        with:
+          name: critical-logic-coverage
+          path: qa-artifacts/coverage/
+          if-no-files-found: ignore
+
+      - name: Upload Playwright report
+        if: always() && matrix.check == 'E2E'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        if: always() && matrix.check == 'E2E'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          if-no-files-found: ignore
+
+      - name: Upload load test summary
+        if: always() && matrix.check == 'Load'
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-summary
+          path: qa-artifacts/load-test-summary.json
+          if-no-files-found: error
+
+      - name: Fail matrix check after artifact upload
+        if: always() && steps.run-check.outcome != 'success'
+        run: exit 1
+
+  qa-report:
+    name: QA report artifacts
+    runs-on: ubuntu-latest
+    needs:
+      - test-gate
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download CI status summaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ci-status-*
+          path: qa-artifacts/ci-status/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: critical-logic-coverage
+          path: qa-artifacts/coverage/
+        continue-on-error: true
+
+      - name: Download load test summary
+        uses: actions/download-artifact@v4
+        with:
+          name: load-test-summary
+          path: qa-artifacts/
+        continue-on-error: true
+
+      - name: Generate QA test report
+        run: npm run test:report
+
+      - name: Upload QA test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foodhub-qa-test-artifacts
+          path: qa-artifacts/
+          if-no-files-found: ignore

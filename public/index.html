@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhiteBlue Test Site</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img src="/assets/whiteblue-logo.png" alt="WhiteBlue" />
+        <div>
+          <p class="eyebrow">Test Site</p>
+          <h1>Practice Site</h1>
+        </div>
+      </div>
+      <div class="status" id="service-status">Checking service</div>
+      <button id="logout-button" class="logout-button" type="button" hidden>Logout</button>
+      <a class="docs-link" href="/api-docs/">Swagger API Docs</a>
+    </header>
+
+    <main id="auth-shell" class="auth-shell">
+      <section id="login-panel" class="auth-panel" aria-labelledby="login-heading">
+        <div>
+          <p class="eyebrow">Customer Login</p>
+          <h2 id="login-heading">Login</h2>
+          <p class="auth-copy">Please provide your login credentials.</p>
+        </div>
+        <form id="login-form" class="auth-form">
+          <input id="login-tenant" type="hidden" value="whiteblue" />
+          <label for="login-username">Username</label>
+          <input id="login-username" autocomplete="username" />
+          <label for="login-password">Password</label>
+          <input id="login-password" autocomplete="current-password" type="password" />
+          <button type="submit">Login</button>
+        </form>
+        <p class="auth-switch">New customer? <a id="show-register-link" href="#">Register here</a></p>
+      </section>
+
+      <section id="register-panel" class="auth-panel" aria-labelledby="register-heading" hidden>
+        <div>
+          <p class="eyebrow">New Customer</p>
+          <h2 id="register-heading">Register</h2>
+          <p class="auth-copy">Create your WhiteBlue customer login.</p>
+        </div>
+        <form id="register-form" class="auth-form">
+          <input id="register-tenant" type="hidden" value="whiteblue" />
+          <input id="register-tenant-name" type="hidden" value="WhiteBlue" />
+          <label for="register-full-name">Full name</label>
+          <input id="register-full-name" autocomplete="name" />
+          <label for="register-email">Email</label>
+          <input id="register-email" autocomplete="email" type="email" />
+          <label for="register-username">Username</label>
+          <input id="register-username" autocomplete="username" />
+          <label for="register-password">Password</label>
+          <input id="register-password" autocomplete="new-password" type="password" />
+          <button type="submit">Register</button>
+        </form>
+        <p class="auth-switch">Already registered? <a id="show-login-link" href="#">Back to login</a></p>
+      </section>
+      <div id="auth-message" class="message auth-message" role="status"></div>
+    </main>
+
+    <main id="app-shell" class="layout" hidden>
+      <section class="menu-panel" aria-labelledby="menu-heading">
+        <h2 id="menu-heading">Hardware Catalog</h2>
+        <div id="menu-list" class="menu-list"></div>
+      </section>
+
+      <aside class="checkout" aria-labelledby="checkout-heading">
+        <h2 id="checkout-heading">Order</h2>
+        <div id="cart-lines" class="cart-lines"></div>
+        <div class="total-row">
+          <span>Total</span>
+          <strong id="cart-total">$0.00</strong>
+        </div>
+        <label for="customer-name">Customer name</label>
+        <input id="customer-name" autocomplete="name" placeholder="WhiteBlue Demo User" />
+        <label for="payment-card">Payment card</label>
+        <select id="payment-card">
+          <option value="approved-card">xxxx-xxxx-xxxx-6781 (Approved)</option>
+          <option value="declined-card">xxxx-xxxx-xxxx-8911 (Declined)</option>
+        </select>
+        <button id="show-card-form" class="secondary-button" type="button">Add fake payment card</button>
+        <form id="card-form" class="card-form" hidden>
+          <label for="new-card-name">Card user name</label>
+          <input id="new-card-name" autocomplete="off" placeholder="Alex Morgan" />
+          <label for="new-card-number">Card number</label>
+          <input id="new-card-number" inputmode="numeric" maxlength="19" placeholder="4242 4242 4242 1234" />
+          <button type="submit">Save card</button>
+        </form>
+        <button id="checkout-button" type="button">Pay and create order</button>
+        <div id="message" class="message" role="status"></div>
+        <div id="invoice-link-panel" class="invoice-link-panel" hidden>
+          <label>Invoice link</label>
+          <div class="invoice-link-box">
+            <a id="invoice-link" href="#">Open invoice for last transaction</a>
+          </div>
+        </div>
+        <section id="invoice-preview" class="invoice-preview" aria-labelledby="invoice-heading" hidden>
+          <h3 id="invoice-heading">Invoice</h3>
+          <dl>
+            <div>
+              <dt>Transaction ID</dt>
+              <dd id="invoice-transaction-id"></dd>
+            </div>
+            <div>
+              <dt>Order ID</dt>
+              <dd id="invoice-order-id"></dd>
+            </div>
+            <div>
+              <dt>Paid via</dt>
+              <dd id="invoice-paid-via"></dd>
+            </div>
+            <div>
+              <dt>Card last 4</dt>
+              <dd id="invoice-card-last4"></dd>
+            </div>
+            <div>
+              <dt>Customer name</dt>
+              <dd id="invoice-customer-name"></dd>
+            </div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

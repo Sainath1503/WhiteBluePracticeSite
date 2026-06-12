@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:ci",
+  "rewrites": [
+    { "source": "/health", "destination": "/api" },
+    { "source": "/menu", "destination": "/api" },
+    { "source": "/order", "destination": "/api" },
+    { "source": "/openapi.json", "destination": "/api" }
+  ]
+}

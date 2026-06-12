@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhiteBlue Payment Gateway</title>
+    <link rel="stylesheet" href="/payment/styles.css" />
+  </head>
+  <body>
+    <main class="gateway-shell">
+      <section class="gateway-panel" aria-labelledby="gateway-heading">
+        <img class="gateway-logo" src="/assets/whiteblue-logo.png" alt="WhiteBlue" />
+        <p class="eyebrow">Test Site payment service</p>
+        <h1 id="gateway-heading">WhiteBlue Payment Gateway</h1>
+
+        <dl class="payment-summary">
+          <div>
+            <dt>Selected card</dt>
+            <dd id="selected-card">Loading</dd>
+          </div>
+          <div>
+            <dt>Amount</dt>
+            <dd id="payment-amount">$0.00</dd>
+          </div>
+        </dl>
+
+        <form id="gateway-form" class="gateway-form">
+          <label for="cardholder">Card user name</label>
+          <input id="cardholder" autocomplete="off" required />
+
+          <label for="cvv">CVV</label>
+          <input id="cvv" inputmode="numeric" maxlength="4" pattern="[0-9]{3,4}" placeholder="123" required />
+
+          <div class="actions">
+            <button type="submit">Pay</button>
+            <button id="cancel-button" class="secondary-button" type="button">Cancel</button>
+          </div>
+        </form>
+
+        <div id="gateway-message" class="message" role="status"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/payment/app.js"></script>
+  </body>
+</html>
