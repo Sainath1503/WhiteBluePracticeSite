@@ -48,6 +48,7 @@ public class QaReportViewerApp extends Application {
   private static final String PAYMENT_SWAGGER_URL = PAYMENT_URL + "/api-docs";
   private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
   private static final String RESOURCE_ROOT = "/com/whiteblue/tools/qareportviewer/";
+  private static final String CUSTOMER_SQLITE_PATH = "runtime/whiteblue-customers.sqlite";
 
   private final TextArea reportingArea = new TextArea();
   private final TextArea servicesArea = new TextArea();
@@ -88,7 +89,7 @@ public class QaReportViewerApp extends Application {
 
     Scene scene = new Scene(root, 1080, 680);
     stylesheet().ifPresent(css -> scene.getStylesheets().add(css));
-    stage.setTitle("WhiteBlue Automation Console");
+    stage.setTitle("White Blue Automation Console");
     loadImage("whiteblue-icon.png").ifPresent(icon -> stage.getIcons().add(icon));
     stage.setScene(scene);
     stage.setMinWidth(880);
@@ -101,12 +102,17 @@ public class QaReportViewerApp extends Application {
   }
 
   private HBox createHeader() {
-    ImageView logo = new ImageView();
-    loadImage("whiteblue-logo.png").ifPresent(logo::setImage);
-    logo.setFitWidth(220);
-    logo.setFitHeight(78);
-    logo.setPreserveRatio(true);
-    logo.getStyleClass().add("brand-logo");
+    ImageView icon = new ImageView();
+    loadImage("whiteblue-icon.png").ifPresent(icon::setImage);
+    icon.setFitWidth(58);
+    icon.setFitHeight(58);
+    icon.setPreserveRatio(true);
+    icon.getStyleClass().add("brand-icon");
+
+    Label brandName = new Label("White Blue");
+    brandName.getStyleClass().add("brand-name");
+    HBox brandMark = new HBox(10, icon, brandName);
+    brandMark.setAlignment(Pos.CENTER_LEFT);
 
     Label title = new Label("Automation Console");
     title.getStyleClass().add("header-title");
@@ -115,7 +121,7 @@ public class QaReportViewerApp extends Application {
     VBox titleBlock = new VBox(4, title, repository);
     titleBlock.setAlignment(Pos.CENTER_LEFT);
 
-    HBox header = new HBox(18, logo, titleBlock);
+    HBox header = new HBox(28, brandMark, titleBlock);
     header.getStyleClass().add("brand-header");
     header.setAlignment(Pos.CENTER_LEFT);
     header.setPadding(new Insets(12, 18, 12, 18));
@@ -137,6 +143,7 @@ public class QaReportViewerApp extends Application {
         actionButton("Check / Install Prerequisites", () -> runUtilityCommand("Prerequisite check", npm("run", "prerequisites:check"), servicesArea)),
         actionButton("Start Service", this::startWhiteBlueService),
         actionButton("Stop Service", () -> stopManagedProcess("WhiteBlue service", true)),
+        actionButton("Truncate Login/Register SQLite", this::resetCustomerSqlite),
         actionButton("Start Swagger Service", this::startSwaggerService),
         actionButton("Stop Swagger Service", () -> stopManagedProcess("Swagger service", false)),
         actionButton("Show Launch URLs", this::showLaunchUrls),
@@ -376,6 +383,28 @@ public class QaReportViewerApp extends Application {
     }
     appendLine(servicesArea, label + " stopped.");
     statusLabel.setText(label + " stopped.");
+  }
+
+  private void resetCustomerSqlite() {
+    Path databasePath = repositoryRoot.resolve(CUSTOMER_SQLITE_PATH).normalize();
+
+    if (isAlive(foodHubServiceProcess)) {
+      stopManagedProcess("WhiteBlue service", true);
+    }
+    if (isAlive(swaggerServiceProcess)) {
+      stopManagedProcess("Swagger service", false);
+    }
+
+    try {
+      Files.deleteIfExists(databasePath);
+      Files.deleteIfExists(Path.of(databasePath + "-shm"));
+      Files.deleteIfExists(Path.of(databasePath + "-wal"));
+      appendLine(servicesArea, "Reset login/register SQLite data: " + databasePath);
+      appendLine(servicesArea, "The next service start will recreate an empty customer database.");
+      statusLabel.setText("Login/register SQLite data reset.");
+    } catch (IOException error) {
+      showError("Unable to reset login/register SQLite data", error.getMessage());
+    }
   }
 
   private void stopProcess(Process process) {
