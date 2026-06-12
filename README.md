@@ -44,9 +44,12 @@ npm run test:load:docker:smoke
 npm run test:load:docker
 npm run test:all
 npm run test:report
+npm run prerequisites:check
 ```
 
 `npm run test:all` runs the local test groups in parallel with fail-fast behavior. After the first failure, active/pending checks are stopped or skipped, resources are released, and `qa-artifacts/test-report.html` marks skipped checks with the failure reason.
+
+Run `npm run prerequisites:check` to verify the local machine has the tools needed for the QA checks before running the full pipeline locally.
 
 The app runs on `http://127.0.0.1:4173`. The payment gateway runs on `http://127.0.0.1:4174`.
 

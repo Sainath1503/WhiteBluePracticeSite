@@ -61,14 +61,14 @@ jobs:
           cleanup() {
             local exit_code=$?
             jobs -pr | xargs -r kill >/dev/null 2>&1 || true
-            if [[ -f .foodhub-api.pid ]]; then
+            if [[ -f .whiteblue-api.pid ]]; then
               local api_pid
-              api_pid="$(cat .foodhub-api.pid)"
+              api_pid="$(cat .whiteblue-api.pid)"
               if [[ -n "$api_pid" ]] && kill -0 "$api_pid" 2>/dev/null; then
                 kill "$api_pid" 2>/dev/null || true
                 wait "$api_pid" 2>/dev/null || true
               fi
-              rm -f .foodhub-api.pid
+              rm -f .whiteblue-api.pid
             fi
             docker ps -aq --filter "ancestor=grafana/k6:2.0.0" | xargs -r docker rm -f >/dev/null 2>&1 || true
             exit "$exit_code"
@@ -98,7 +98,7 @@ jobs:
             Load)
               mkdir -p qa-artifacts
               node dist/src/server.js &
-              echo "$!" > .foodhub-api.pid
+              echo "$!" > .whiteblue-api.pid
 
               for attempt in {1..30}; do
                 if curl --fail --silent http://127.0.0.1:4173/health > /dev/null; then
@@ -107,7 +107,7 @@ jobs:
                 sleep 1
               done
               if ! curl --fail --silent http://127.0.0.1:4173/health > /dev/null; then
-                echo "FoodHub API did not become healthy in time"
+                echo "WhiteBlue API did not become healthy in time"
                 exit 1
               fi
 
@@ -125,7 +125,7 @@ jobs:
                 -w /work \
                 grafana/k6:2.0.0 run \
                   --summary-export qa-artifacts/load-test-summary.json \
-                  tests/load/foodhub-api.k6.js
+                  tests/load/whiteblue-api.k6.js
 
               ls -la qa-artifacts
               test -s qa-artifacts/load-test-summary.json || {
@@ -256,6 +256,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: foodhub-qa-test-artifacts
+          name: whiteblue-qa-test-artifacts
           path: qa-artifacts/
           if-no-files-found: ignore

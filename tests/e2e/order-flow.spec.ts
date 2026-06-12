@@ -15,7 +15,6 @@ async function attachScreenshot(page: Page, name: string) {
 async function expectStableScreenshot(page: Page, name: string) {
   await expect(page).toHaveScreenshot(name, {
     animations: "disabled",
-    fullPage: true,
     maxDiffPixelRatio: 0.1
   });
 }
