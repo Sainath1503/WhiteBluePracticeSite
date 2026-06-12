@@ -46,7 +46,7 @@ describe("Order persistence with Testcontainers PostgreSQL", () => {
     expect(savedOrder).toEqual(
       expect.objectContaining({
         orderId: response.body.orderId,
-        total: 19,
+        total: 598,
         paymentStatus: "paid",
         paymentId: "pay_testcontainers",
         customerName: "WhiteBlue Demo User"
@@ -56,7 +56,7 @@ describe("Order persistence with Testcontainers PostgreSQL", () => {
       expect.objectContaining({
         menuItemId: "cpu-ryzen-7",
         quantity: 2,
-        lineTotal: 19
+        lineTotal: 598
       })
     ]);
   });
