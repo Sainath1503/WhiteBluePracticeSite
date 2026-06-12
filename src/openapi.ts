@@ -24,7 +24,7 @@ export const whiteBlueOpenApiSpec: OpenApiDocument = {
   ],
   tags: [
     { name: "WhiteBlue App", description: "Hardware catalog and order APIs" },
-    { name: "Customer Auth", description: "SQLite-backed tenant customer registration, login, and lookup APIs" },
+    { name: "Customer Auth", description: "Firebase Realtime Database-backed tenant customer registration, login, and lookup APIs" },
     { name: "Payment Gateway", description: "Fake payment gateway status and browser handoff" }
   ],
   paths: {
@@ -67,7 +67,7 @@ export const whiteBlueOpenApiSpec: OpenApiDocument = {
         tags: ["Customer Auth"],
         summary: "Register a tenant customer",
         description:
-          "Creates the embedded SQLite customer tables at runtime when needed, inserts the tenant/customer record, stores a salted password hash, and returns a session token.",
+          "Creates or reuses the tenant record in Firebase Realtime Database, stores the customer with a salted password hash, and returns a session token.",
         servers: [{ url: "/" }],
         requestBody: {
           required: true,
@@ -111,7 +111,7 @@ export const whiteBlueOpenApiSpec: OpenApiDocument = {
         tags: ["Customer Auth"],
         summary: "Validate customer login",
         description:
-          "Reads the customer credentials from the embedded SQLite database and validates the supplied password against the stored salted hash.",
+          "Reads the customer credentials from Firebase Realtime Database and validates the supplied password against the stored salted hash.",
         servers: [{ url: "/" }],
         requestBody: {
           required: true,
@@ -188,7 +188,7 @@ export const whiteBlueOpenApiSpec: OpenApiDocument = {
         tags: ["Customer Auth"],
         summary: "Find customer by tenant and username",
         description:
-          "Reads a customer profile from the embedded SQLite database. Password hashes and salts are never returned.",
+          "Reads a customer profile from Firebase Realtime Database. Password hashes and salts are never returned.",
         servers: [{ url: "/" }],
         parameters: [
           {
