@@ -3,14 +3,24 @@
   -fx-font-family: "Segoe UI", Arial, sans-serif;
 }
 
+.label {
+  -fx-text-fill: #10283d;
+}
+
 .brand-header {
   -fx-background-color: #0787f7;
   -fx-border-color: #0569c6;
   -fx-border-width: 0 0 1 0;
 }
 
-.brand-logo {
+.brand-icon {
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.22), 10, 0.2, 0, 2);
+}
+
+.brand-name {
+  -fx-text-fill: white;
+  -fx-font-size: 30px;
+  -fx-font-weight: 900;
 }
 
 .header-title {
@@ -94,8 +104,4 @@
   -fx-font-size: 13px;
   -fx-font-weight: 800;
   -fx-padding: 10 0 0 0;
-}
-
-.label {
-  -fx-text-fill: #10283d;
 }
