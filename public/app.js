@@ -439,15 +439,26 @@ async function authenticate(url, body) {
   authMessage.textContent = "Checking customer details...";
   authMessage.className = "message auth-message";
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  const payload = await response.json();
+  let response;
+  let payload;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const contentType = response.headers.get("content-type") ?? "";
+    payload = contentType.includes("application/json") ? await response.json() : {};
+  } catch {
+    authMessage.textContent = "Could not reach the login service.";
+    authMessage.className = "message auth-message error";
+    return;
+  }
 
   if (!response.ok) {
-    authMessage.textContent = `${payload.error}: ${payload.details}`;
+    const error = payload.error ?? "Customer authentication failed";
+    const details = payload.details ?? `Login service returned HTTP ${response.status}`;
+    authMessage.textContent = `${error}: ${details}`;
     authMessage.className = "message auth-message error";
     return;
   }
